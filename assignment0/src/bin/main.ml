@@ -108,7 +108,7 @@ let tokenize str =
 
 (* Note that the 'too' field should probably be called 'to' (that is the names would be from and to), but 'to'
    is already a reserved keyword in OCaml, so we cannot use it for a field name. *)
-(*
+
 type t = C
        | Var of int
        | Arrow of { from : t
@@ -119,15 +119,33 @@ type t = C
 
    formatTree : t -> string
 *)
-
-let formatTree _ =
-  failwith "Problem 6: formatTree not yet implemented."
+let rec getTree t = match t with
+| C -> "C"
+| Var(v) ->  Printf.sprintf "v%d" v
+| Arrow(arr) -> let fStr = getTree arr.from in let tStr = getTree arr.too in Printf.sprintf "(%s -> %s)" fStr tStr
+let formatTree t =
+ getTree t
 
 (* Problem 7: .75 point 
 
    subplaindrome : string -> string
 *)
-let subpalindrome _ = failwith "Problem 7: subpalindrome not implemented"
+let rec isPalindrome str left right =
+    if left >= right then true else
+    let firstChar = String.get str left in
+    let lastChar = String.get str right in
+    if firstChar = lastChar && isPalindrome str (left + 1) (right - 1) then true else false
+
+let rec helper str left right =
+    if left >= right then String.sub str left 1 else
+    if isPalindrome str left right then String.sub str left (right - left + 1) else
+    helper str (left + 1) (right - 1)
+
+let subpalindrome str =
+    let right = String.length str in
+    if right = 0 then "" else
+    helper str 0 (right - 1)
+
 
 (* Problem 8: .5 point
 
@@ -135,14 +153,34 @@ let subpalindrome _ = failwith "Problem 7: subpalindrome not implemented"
 *)
 type comparison = GEQ | LT
 
-let listComparisons _ = failwith "Problem 8: listComparisons not implemented"
+let listComparisons inputList =
+    let reversedList1 = List.rev inputList in
+    let reversedList2 = List.tl reversedList1 in
+    let list1 = List.rev reversedList2 in (* inputList without last element*)
+    let list2 = List.tl inputList in (* inputList without first element*)
+    let list3 = List.map2 (fun x y -> if y >= x then GEQ else LT) list1 list2 in
+    List.append [GEQ] list3
 
 (* Problem 9: 1 point
 
    patience : (int list) list -> int -> (int list) list
 *)
-let patience _ _ = failwith "Problem 9: patience not implemented"
-
+let rec findIndex list n =
+    match list with
+    | [] -> -1;
+    | pile::t -> let head = List.hd pile in if head >= n then 0 else 1 + findIndex t n
+(* check if n should be add as a new pile*)
+let check list n =
+    List.exists (fun pile -> let head = List.hd pile in if head >= n then true else false) list
+let replace l pos a  = List.mapi (fun i x -> if i = pos then a else x) l;;
+let patience piles n =
+    if check piles n then
+    let index = findIndex piles n in
+    let originalPile = List.nth piles index in
+    let newPile = List.append [n] originalPile in
+    replace piles index newPile
+    else List.append piles [[n]]
+(*
 (* Problem 10 : .75 points *)
 
 module type FilteredSetType = sig
@@ -170,15 +208,15 @@ type parts = One       (* isDigit *)
            | Two       (* newFileName *)
            | Three     (* homePath *)
            | Four      (* atoi *)
-           | Five      (* tokenize *)(*
+           | Five      (* tokenize *)
            | Six       (* formatTree *)
            | Seven       (* subpalindrome *)
            | Eight       (* listComparisons *)
-           | Nine       (* patience *)
+           | Nine       (* patience *)(*
            | Ten       (* FilteredSet module *)
            *)
 
-(* Some simple test data
+(* Some simple test data *)
 
 let v0 = Lib.fresh()
 let v1 = Lib.fresh()
@@ -208,7 +246,7 @@ let t2 = Arrow { from = t1
 let t3 = Arrow { from = C
                ; too  = t0
                }
-*)
+
 (********************************************************************)
 
 (* Test isDigit
@@ -263,7 +301,7 @@ let tokenizeTests () =
   Lib.run_test "tokenize test1" tokenizeTest1 ;
   Lib.run_test "tokenize test2" tokenizeTest2 ;
   Lib.run_test "tokenize test3" tokenizeTest3
-(*
+
 (* Test formatTree
 *)
 let formatTreeTest1 () = (formatTree t0) = "(v0 -> (C -> C))"
@@ -327,7 +365,7 @@ let patienceTests () =
   Lib.run_test "patience test6" patienceTest6 ;
   Lib.run_test "patience test7" patienceTest7 ;
   Lib.run_test "patience test8" patienceTest8
-*)
+
 
 let isEven n = (n mod 2 = 0)
 
@@ -383,11 +421,11 @@ let test part =
   | Two   -> newFileNameTests()
   | Three -> homePathTests()
   | Four  -> atoiTests()
-  | Five  -> tokenizeTests()(*
+  | Five  -> tokenizeTests()
   | Six   -> formatTreeTests()
   | Seven   -> subpalindromeTests ()
   | Eight   -> listComparisonsTests ()
-  | Nine -> patienceTests ()
+  | Nine -> patienceTests ()(*
   | Ten  -> filteredSetTests ()
   *)
 
@@ -396,11 +434,11 @@ let run () =
   let () = test Two in
   let () = test Three in
   let () = test Four in
-  let () = test Five in(*
+  let () = test Five in
   let () = test Six in
   let () = test Seven in
   let () = test Eight in
-  let () = test Nine in
+  let () = test Nine in(*
   let () = test Ten in *)
   ()
 
