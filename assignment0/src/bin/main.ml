@@ -180,7 +180,7 @@ let patience piles n =
     let newPile = List.append [n] originalPile in
     replace piles index newPile
     else List.append piles [[n]]
-(*
+
 (* Problem 10 : .75 points *)
 
 module type FilteredSetType = sig
@@ -190,16 +190,27 @@ module type FilteredSetType = sig
   val member : int -> t -> bool
   val mapAndFilter : (int -> int) -> t -> t
 end
-
 module FilteredSet : FilteredSetType =
 struct
-  type t = unit
-  let newSet _ = failwith "Problem 4: newSet not implemented"
-  let insert _ _ = failwith "Problem 4: insert not implemented"
-  let member _ _ = failwith "Problem 4: member not implemented"
-  let mapAndFilter _ _ = failwith "Problem 4: mapAndFilter not implemented"
+  type t = {fc : int -> bool; elements : int list}
+  let newSet f = {fc = f; elements = []}
+  let insert x set =
+          let filterFunc = set.fc in
+          let list = set.elements in
+          let list2 = if filterFunc x then x :: list else list in
+          {fc = filterFunc; elements = list2}
+  let rec helper x s =
+           match s with
+              | [] -> false
+              | elem::l -> if elem = x then true else helper x l
+      let member x set =
+          helper x set.elements
+  let mapAndFilter f set =
+          let list1 = List.map f set.elements in
+          let list2 = List.filter set.fc list1 in
+          {fc = set.fc; elements = list2}
 end
-*)
+
 
 (* TESTING **********************************************************)
 
@@ -212,9 +223,9 @@ type parts = One       (* isDigit *)
            | Six       (* formatTree *)
            | Seven       (* subpalindrome *)
            | Eight       (* listComparisons *)
-           | Nine       (* patience *)(*
+           | Nine       (* patience *)
            | Ten       (* FilteredSet module *)
-           *)
+
 
 (* Some simple test data *)
 
@@ -369,8 +380,8 @@ let patienceTests () =
 
 let isEven n = (n mod 2 = 0)
 
-(*open FilteredSet *)
-(*
+open FilteredSet
+
 let rec insert_list xs s =
   match xs with
   | [] -> s
@@ -410,7 +421,7 @@ let filteredSetTests () =
   | Failure s -> print_endline ("filteredSet tests error: `" ^ s ^ "`\n")
   | e -> print_endline ("filteredSet tests error: `" ^ Printexc.to_string e ^ "`\n")
 
-*)
+
 (******************************************************************)
 
 (******************************************************************)
@@ -425,9 +436,9 @@ let test part =
   | Six   -> formatTreeTests()
   | Seven   -> subpalindromeTests ()
   | Eight   -> listComparisonsTests ()
-  | Nine -> patienceTests ()(*
+  | Nine -> patienceTests ()
   | Ten  -> filteredSetTests ()
-  *)
+
 
 let run () =
   let () = test One in
@@ -438,8 +449,8 @@ let run () =
   let () = test Six in
   let () = test Seven in
   let () = test Eight in
-  let () = test Nine in(*
-  let () = test Ten in *)
+  let () = test Nine in
+  let () = test Ten in
   ()
 
 let () =
