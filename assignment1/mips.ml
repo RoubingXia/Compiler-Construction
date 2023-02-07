@@ -78,7 +78,7 @@ let test_interpreter () =
   let _ = testi "i_beqt" i_beqt [] [] (1,0x10l) in
   let _ = testi "i_beqf" i_beqf [(R1,0x4l)] [] (1,0xCl) in
   let _ = testi "i_jr" i_jr [(R1,0xFEE0l)] [] (0,0xFEE0l) in
-  let _ = testi "i_jal" i_jal [] [] (0,0x3FB80l) in*)
+  let _ = testi "i_jal" i_jal [] [] (0,0x3FB80l) in *)
   ()
 ;;
 
