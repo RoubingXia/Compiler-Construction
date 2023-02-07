@@ -14,20 +14,20 @@ exception FatalError
    all 0s.
  *)
 let rec interp (init_state : state) : state =
-    let w = read_word init_state.m init_state.pc in
+    let w = read_word2 init_state.m init_state.pc in
     let wordRef = ref w in
     let pc = ref init_state.pc in
     Printf.printf "stat memory is : %s\n" (string_of_mem init_state.m);
     Printf.printf "stat pc is : %d\n" (Int32.to_int init_state.pc);
     while !wordRef <> Int32.zero do
         let word_str = Int32.to_string !wordRef in
-        Printf.printf "the word read from memory is : %d\n" (Int32.to_int !wordRef);
-       (* let inst = word2ins w in*)
-       (* let inst_str = inst2str inst in
-        Printf.printf "the instruction is : %s\n" inst_str;*)
+        Printf.printf "the word read from memory is : %x\n" (Int32.to_int !wordRef);
+        let inst = word2ins !wordRef in
+        let inst_str = inst2str inst in
+        Printf.printf "the instruction is : %s\n" inst_str;
         pc :=  Int32.add !pc 0x4l;
         Printf.printf "the pc is : %s\n" (Int32.to_string !pc);
-        let w = read_word init_state.m !pc in
+        let w = read_word2 init_state.m !pc in
             (*parse word to instruction*)
         wordRef := w;
     done;

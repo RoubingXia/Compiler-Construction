@@ -111,19 +111,39 @@ let instformat2word (f: instformat) : int32 =
 ;;
 
 let word2instformat (w:int32) : instformat =
-    let opcode = Int32.logand (Int32.shift_left (ones 6) 26) w in
-    Printf.printf "word is %x" (Int32.to_int w);
-    Printf.printf "opcode is %x" (Int32.to_int opcode);
-    Printf.printf "mask without shift is %x" (Int32.to_int  (ones 6));
-    Printf.printf "mask is %x" (Int32.to_int (Int32.shift_left (ones 6) 0));
-    let rs = Int32.logand (Int32.shift_left (ones 5) 21) w in
-    let rt = Int32.logand (Int32.shift_left (ones 5) 16) w in
-    let rd = Int32.logand (Int32.shift_left (ones 5) 11) w in
-    let shamt = Int32.logand (Int32.shift_left (ones 5) 6) w in
-    let func = Int32.logand (ones 6) w in
-    let res_inst = R {r_opcode = opcode; r_rs = rs; r_rt = rt; r_rd = rd;
-                       r_shamt = shamt; r_fun = func} in
-    res_inst
+    let opcode = Int32.shift_right (Int32.logand (Int32.shift_left (ones 6) 26) w) 26 in
+    Printf.printf "word is %x\n" (Int32.to_int w);
+    Printf.printf "opcode is %x\n" (Int32.to_int opcode);
+    match opcode with
+    | 0l -> Printf.printf "this is a R type instruction\n"; (* R type *)
+        let rs = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
+            let rt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
+            let rd = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 11) w) 11 in
+            let shamt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 6) w) 6 in
+            let func = Int32.logand (ones 6) w in
+            let r_inst = R {r_opcode = opcode; r_rs = rs; r_rt = rt; r_rd = rd;
+                               r_shamt = shamt; r_fun = func} in
+            r_inst
+    | 0x3l -> Printf.printf "this is a J type instruction\n"; (* J type *)
+        Printf.printf "mask is %x\n" (Int32.to_int (ones 10));
+        Printf.printf "addr is %x\n" (Int32.to_int (Int32.logand (ones 26) w));
+        let addr = Int32.logand (ones 26) w in
+        Printf.printf "I am still alive 1\n";
+        let j_inst = J {j_opcode = opcode; j_addr = addr} in
+        j_inst
+    | _ -> Printf.printf "this is a I type instruction\n"; (* I type *)
+        let rs = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
+        Printf.printf "rs is %x\n" (Int32.to_int rs);
+        let rt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
+        Printf.printf "rt is %x\n" (Int32.to_int rt);
+        let imm = Int32.logand (ones 16) w in
+        Printf.printf "imm is %x\n" (Int32.to_int imm);
+        let i_inst = I {i_opcode = opcode; i_rs = rs; i_rt = rt; i_imm = imm} in
+        Printf.printf "i_inst is %s\n" (inst2str (instformat2ins i_inst));
+        i_inst
+
+
+
 ;;
 
 let ins2word (i: inst) : int32 = instformat2word (ins2instformat i)
@@ -219,6 +239,14 @@ let read_word (mem : memory) (addr : int32) =
   let b3 = mem_lookup (Int32.add addr 0x2l) mem in
   let b4 = mem_lookup (Int32.add addr 0x3l) mem in
   b2i b1 b2 b3 b4
+
+(* read a word from memory reverse order from read_word*)
+let read_word2 (mem : memory) (addr : int32) =
+  let b1 = mem_lookup addr mem in
+  let b2 = mem_lookup (Int32.add addr 0x1l) mem in
+  let b3 = mem_lookup (Int32.add addr 0x2l) mem in
+  let b4 = mem_lookup (Int32.add addr 0x3l) mem in
+  b2i b4 b3 b2 b1
 
 (* reverse the endianness of an Int32 *)
 let rev_endianess w = 
