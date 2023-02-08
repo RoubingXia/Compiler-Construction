@@ -22,24 +22,38 @@ let execute (init_state : state) (instruction : inst) : state =
           let rs_val = rf_lookup (reg2ind rs)  init_state.r in
           let res_val = Int32.add rt_val rs_val in
           let regfile = rf_update (reg2ind rd) res_val init_state.r in
-          let updated_state = { r = regfile; pc = init_state.pc; m = init_state.m } in
+          let updated_state = { r = regfile; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
           updated_state
       | Beq (rs, rt, offset) ->
+           (*if rs == rt then pc = 4 + offset*)
           Printf.printf "process Beq inst with parameters (%d, %d, %d) \n" (Int32.to_int (reg2ind32 rs)) (Int32.to_int (reg2ind32 rt)) (Int32.to_int offset);
-                    init_state
+          let rs_val = rf_lookup (reg2ind rs) init_state.r in
+          let rt_val = rf_lookup (reg2ind rt) init_state.r in
+          if Int32.equal rs_val rt_val then
+            let updated_state = { r = init_state.r; pc = Int32.add offset (Int32.add init_state.pc 0x4l); m = init_state.m } in
+            updated_state
+          else
+            let updated_state = { r = init_state.r; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
+            updated_state
       | Jr rs ->
+          (*pc = rs*)
           Printf.printf "process Jr inst with parameters (%d) \n" (Int32.to_int (reg2ind32 rs));
-                    init_state
+          let updated_state = { r = init_state.r; pc = (rf_lookup (reg2ind rs) init_state.r); m = init_state.m } in
+          updated_state
       | Jal addr ->
+           (*$31 = current pc + 4, pc = addr   (PC & 0xf0000000) | (target << 2)*)
           Printf.printf "process Jal inst with parameters (%d) \n" (Int32.to_int addr);
-                    init_state
+          let target_addr = Int32.logor (Int32.logand init_state.pc 0xf0000000l) (Int32.shift_left addr 2) in
+          let regfile = rf_update 31 (Int32.add 0x4l init_state.pc) init_state.r in
+          let updated_state = { r = regfile; pc = target_addr; m = init_state.m } in
+          updated_state
       | Li (rd, imm) -> raise (PError "Li encountered")
       | Lui (rt, imm) ->
            (* shift left 16 bits of imm, and load it to rt*)
           Printf.printf "process Lui inst with parameters (%d, %d) \n" (Int32.to_int (reg2ind32 rt)) (Int32.to_int imm);
           let upper_imm = Int32.shift_left imm 16 in
           let regfile = rf_update (reg2ind rt) upper_imm init_state.r in
-          let updated_state = { r = regfile; pc = init_state.pc; m = init_state.m } in
+          let updated_state = { r = regfile; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
           updated_state
       | Ori (rt, rs, imm) ->
           (* rt = rs | imm *)
@@ -47,14 +61,30 @@ let execute (init_state : state) (instruction : inst) : state =
           let rs_val = rf_lookup (reg2ind rs) init_state.r in
           let res_val = Int32.logor rs_val imm in
           let regfile = rf_update (reg2ind rt) res_val init_state.r in
-          let updated_state = { r = regfile; pc = init_state.pc; m = init_state.m } in
+          let updated_state = { r = regfile; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
           updated_state
       | Lw (rt, rs, imm) ->
+            (*load mem[rs + imm] to rt*)
           Printf.printf "process Lw inst with parameters (%d, %d, %d) \n" (Int32.to_int (reg2ind32 rt)) (Int32.to_int (reg2ind32 rs)) (Int32.to_int imm);
-                    init_state
+          let target_addr = Int32.add (rf_lookup (reg2ind rs) init_state.r) imm  in
+          let reg_val = read_word2 init_state.m target_addr in
+          let regfile = rf_update (reg2ind rt)  reg_val init_state.r in
+          let updated_state = { r = regfile; pc = init_state.pc; m = init_state.m } in
+          updated_state
       | Sw (rt, rs, imm) ->
+        (*store rt to mem[rs + imm]t*)
           Printf.printf "process Sw inst with parameters (%d, %d, %d) \n" (Int32.to_int (reg2ind32 rt)) (Int32.to_int (reg2ind32 rs)) (Int32.to_int imm);
-                    init_state
+          let target_addr = Int32.add (rf_lookup (reg2ind rs) init_state.r) imm  in
+          let updated_mem =
+            (*mem_update target_addr (getByte (rf_lookup (reg2ind rt)) 0)*)
+            mem_update target_addr (getByte (rf_lookup (reg2ind rt) init_state.r)  3) (
+                  mem_update (Int32.add target_addr 1l) (getByte (rf_lookup (reg2ind rt) init_state.r) 2) (
+                  mem_update (Int32.add target_addr 2l) (getByte (rf_lookup (reg2ind rt) init_state.r) 1) (
+                  mem_update (Int32.add target_addr 3l) (getByte (rf_lookup (reg2ind rt) init_state.r) 0) (
+                    init_state.m))))
+           in
+          let updated_state = { r = init_state.r; pc = init_state.pc; m = updated_mem } in
+          updated_state
 let rec interp (init_state : state) : state =
     let res_state = ref init_state in
     let w = read_word2 init_state.m init_state.pc in
@@ -77,8 +107,6 @@ let rec interp (init_state : state) : state =
             (*parse word to instruction*)
         wordRef := w;
     done;
-    let updated_state = { r = !res_state.r; pc = !pc; m = !res_state.m } in
-    res_state := updated_state;
     Printf.printf "res_stat register is : %s\n" (string_of_rf !res_state.r);
     Printf.printf "res_stat pc is : %d\n"  (Int32.to_int !res_state.pc);
     !res_state
