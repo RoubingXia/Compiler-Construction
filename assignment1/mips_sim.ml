@@ -25,12 +25,12 @@ let execute (init_state : state) (instruction : inst) : state =
           let updated_state = { r = regfile; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
           updated_state
       | Beq (rs, rt, offset) ->
-           (*if rs == rt then pc = 4 + offset*)
+           (*if rs == rt then pc = offset << 2*)
           Printf.printf "process Beq inst with parameters (%d, %d, %d) \n" (Int32.to_int (reg2ind32 rs)) (Int32.to_int (reg2ind32 rt)) (Int32.to_int offset);
           let rs_val = rf_lookup (reg2ind rs) init_state.r in
           let rt_val = rf_lookup (reg2ind rt) init_state.r in
           if Int32.equal rs_val rt_val then
-            let updated_state = { r = init_state.r; pc = Int32.add offset (Int32.add init_state.pc 0x4l); m = init_state.m } in
+            let updated_state = { r = init_state.r; pc = Int32.add (Int32.shift_left offset 2) init_state.pc; m = init_state.m } in
             updated_state
           else
             let updated_state = { r = init_state.r; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
@@ -69,7 +69,7 @@ let execute (init_state : state) (instruction : inst) : state =
           let target_addr = Int32.add (rf_lookup (reg2ind rs) init_state.r) imm  in
           let reg_val = read_word2 init_state.m target_addr in
           let regfile = rf_update (reg2ind rt)  reg_val init_state.r in
-          let updated_state = { r = regfile; pc = init_state.pc; m = init_state.m } in
+          let updated_state = { r = regfile; pc = (Int32.add init_state.pc 0x4l); m = init_state.m } in
           updated_state
       | Sw (rt, rs, imm) ->
         (*store rt to mem[rs + imm]t*)
@@ -83,32 +83,39 @@ let execute (init_state : state) (instruction : inst) : state =
                   mem_update (Int32.add target_addr 3l) (getByte (rf_lookup (reg2ind rt) init_state.r) 0) (
                     init_state.m))))
            in
-          let updated_state = { r = init_state.r; pc = init_state.pc; m = updated_mem } in
+          let updated_state = { r = init_state.r; pc = (Int32.add init_state.pc 0x4l); m = updated_mem } in
           updated_state
 let rec interp (init_state : state) : state =
     let res_state = ref init_state in
     let w = read_word2 init_state.m init_state.pc in
     let wordRef = ref w in
     let pc = ref init_state.pc in
+    (*
     Printf.printf "stat memory is : %s\n" (string_of_mem init_state.m);
     Printf.printf "stat register is : %s\n" (string_of_rf init_state.r);
     Printf.printf "stat pc is : %d\n" (Int32.to_int init_state.pc);
+    *)
     while !wordRef <> Int32.zero do
         let word_str = Int32.to_string !wordRef in
+        (*Printf.printf "current memory is : %s\n" (string_of_mem init_state.m);
+        Printf.printf "current pc is : %d\n" (Int32.to_int !pc);
         Printf.printf "the word read from memory is : %x\n" (Int32.to_int !wordRef);
+        *)
         let inst = word2ins !wordRef in
         let inst_str = inst2str inst in
-        Printf.printf "the instruction is : %s\n" inst_str;
+       (* Printf.printf "the instruction is : %s\n" inst_str; *)
         let next_state = execute !res_state inst in
         res_state := next_state;
         pc :=  Int32.add !pc 0x4l;
-        Printf.printf "the pc is : %s\n" (Int32.to_string !pc);
+       (* Printf.printf "the pc is : %s\n" (Int32.to_string !pc); *)
         let w = read_word2 init_state.m !pc in
             (*parse word to instruction*)
         wordRef := w;
     done;
+    (*
     Printf.printf "res_stat register is : %s\n" (string_of_rf !res_state.r);
     Printf.printf "res_stat pc is : %d\n"  (Int32.to_int !res_state.pc);
+    *)
     !res_state
 
 (*

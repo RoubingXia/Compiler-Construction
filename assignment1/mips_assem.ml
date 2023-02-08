@@ -111,35 +111,34 @@ let instformat2word (f: instformat) : int32 =
 ;;
 
 let word2instformat (w:int32) : instformat =
-    let opcode = Int32.shift_right (Int32.logand (Int32.shift_left (ones 6) 26) w) 26 in
-    Printf.printf "word is %x\n" (Int32.to_int w);
-    Printf.printf "opcode is %x\n" (Int32.to_int opcode);
+    let opcode = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 6) 26) w) 26 in
+   (* Printf.printf "word is %d\n" (Int32.to_int w);
+    Printf.printf "opcode is %x\n" (Int32.to_int opcode);*)
     match opcode with
     | 0l -> Printf.printf "this is a R type instruction\n"; (* R type *)
-        let rs = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
-            let rt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
-            let rd = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 11) w) 11 in
-            let shamt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 6) w) 6 in
+        let rs = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
+            let rt = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
+            let rd = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 11) w) 11 in
+            let shamt = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 6) w) 6 in
             let func = Int32.logand (ones 6) w in
             let r_inst = R {r_opcode = opcode; r_rs = rs; r_rt = rt; r_rd = rd;
                                r_shamt = shamt; r_fun = func} in
             r_inst
     | 0x3l -> Printf.printf "this is a J type instruction\n"; (* J type *)
-        Printf.printf "mask is %x\n" (Int32.to_int (ones 10));
-        Printf.printf "addr is %x\n" (Int32.to_int (Int32.logand (ones 26) w));
+        (* Printf.printf "mask is %x\n" (Int32.to_int (ones 10));
+        Printf.printf "addr is %x\n" (Int32.to_int (Int32.logand (ones 26) w)); *)
         let addr = Int32.logand (ones 26) w in
-        Printf.printf "I am still alive 1\n";
         let j_inst = J {j_opcode = opcode; j_addr = addr} in
         j_inst
     | _ -> Printf.printf "this is a I type instruction\n"; (* I type *)
-        let rs = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
-        Printf.printf "rs is %x\n" (Int32.to_int rs);
-        let rt = Int32.shift_right (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
-        Printf.printf "rt is %x\n" (Int32.to_int rt);
+        let rs = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 21) w) 21 in
+        (*Printf.printf "rs is %x\n" (Int32.to_int rs); *)
+        let rt = Int32.shift_right_logical (Int32.logand (Int32.shift_left (ones 5) 16) w) 16 in
+        (*Printf.printf "rt is %x\n" (Int32.to_int rt); *)
         let imm = Int32.logand (ones 16) w in
-        Printf.printf "imm is %x\n" (Int32.to_int imm);
+        (*Printf.printf "imm is %x\n" (Int32.to_int imm); *)
         let i_inst = I {i_opcode = opcode; i_rs = rs; i_rt = rt; i_imm = imm} in
-        Printf.printf "i_inst is %s\n" (inst2str (instformat2ins i_inst));
+       (* Printf.printf "i_inst is %s\n" (inst2str (instformat2ins i_inst));*)
         i_inst
 
 
