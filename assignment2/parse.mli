@@ -23,7 +23,8 @@ type token =
   | VAR of (string)
   | LBRACE
   | RBRACE
-  | NL
+  | IF
+  | ELSE
 
 val program :
   (Lexing.lexbuf  -> token) -> Lexing.lexbuf -> Ast.program

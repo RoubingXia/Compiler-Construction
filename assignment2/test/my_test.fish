@@ -1,10 +1,10 @@
-{
-  x = 1;
-  y = 2;
-  if (x != y) {
-    return 5;
-  }
-  else {
-    return 10;
-  }
+a = 1;
+b = 2;
+c = 0;
+if (a == 1) {
+   c = 1;
 }
+else {
+  c = 2;
+}
+return c;

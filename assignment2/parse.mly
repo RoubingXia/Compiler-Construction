@@ -67,10 +67,10 @@ match b with
 %token RETURN
 %token <string> VAR
 %token LBRACE RBRACE
-%token NL
+%token IF ELSE
 
 
-/* Here's where the real grammar starts -- you'll need to add 
+/* Here's where the real grammar starts -- you'll need to add
  * more rules here... Do not remove the 2%'s!! */
 
 %%
@@ -90,14 +90,14 @@ stmt :
    | VAR ASSIGN expr SEMI
        {
         Printf.printf "Math assign";
-            assign $1 $3;
-            Hashtbl.iter (fun x y -> Printf.printf "%s -> %d\n" x y) symbol_table;
-           let r_val : rexp = Int($3) in
-           let r_exp : exp = (r_val, 0) in
-           let res_var = Var($1) in
-           let res_assign : rexp = Assign($1, r_exp) in
-         let res_rstmt : rstmt = Exp(res_assign,0) in
-               (res_rstmt, 0)
+        assign $1 $3;
+        Hashtbl.iter (fun x y -> Printf.printf "%s -> %d\n" x y) symbol_table;
+        let r_val : rexp = Int($3) in
+        let r_exp : exp = (r_val, 0) in
+        let res_var = Var($1) in
+        let res_assign : rexp = Assign($1, r_exp) in
+        let res_rstmt : rstmt = Exp(res_assign,0) in
+        (res_rstmt, 0)
        }
    | VAR ASSIGN expr SEMI stmt
            {
@@ -117,27 +117,40 @@ stmt :
                      (res_rstmt, 0)
 
            }*/
-           | RETURN expr SEMI
-                 {
-                 Printf.printf "Math return ";
-                     let res_rstmt : rstmt = Return(Int $2, 0) in
-                       (res_rstmt, 0)
-                 }
-         | expr
-               {
-               Printf.printf "Math expr";
-                 let res_rstmt : rstmt = Exp(Int $1,0) in
-                 (res_rstmt, 0)
-               }
-            | stmt SEMI stmt
-                  {
-                  Printf.printf "Math stmt ; stmt";
-                    let stmt1 : stmt =  $1 in
-                    let stmt2 : stmt =  $3 in
-                    let res_rstmt : rstmt = Seq(stmt1, stmt2) in
-                    (res_rstmt, 0)
-                  }
+   | RETURN expr SEMI
+         {
+         Printf.printf "Math return \n";
+             let res_rstmt : rstmt = Return(Int $2, 0) in
+               (res_rstmt, 0)
+         }
+ | LBRACE stmt RBRACE {
+ $2
 
+ }
+    | stmt SEMI stmt
+          {
+          Printf.printf "Math stmt ; stmt\n";
+            let stmt1 : stmt =  $1 in
+            let stmt2 : stmt =  $3 in
+            let res_rstmt : rstmt = Seq(stmt1, stmt2) in
+            (res_rstmt, 0)
+          }
+ | IF expr LBRACE stmt RBRACE ELSE LBRACE stmt RBRACE stmt
+ {
+    Printf.printf "Match if 1 \n";
+    let if_exp : exp = (Int $2,0) in
+    let if_rstmt : rstmt = If(if_exp, $4, $8) in
+    let stmt1 : stmt =  (if_rstmt, 0) in
+    let stmt2 : stmt =  $10 in
+    let res_rstmt : rstmt = Seq(stmt1, stmt2) in
+    (res_rstmt, 0)
+ }
+| expr
+       {
+       Printf.printf "Math expr";
+         let res_rstmt : rstmt = Exp(Int $1,0) in
+         (res_rstmt, 0)
+       }
 
 expr :
     INT {$1}
