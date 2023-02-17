@@ -3,6 +3,16 @@
 %{
 open Ast
 open Lexing
+open Hashtbl
+
+  let symbol_table = create 10 (* create a symbol table with initial size of 10 *)
+
+  let lookup x =
+    try find symbol_table x
+    with Not_found -> failwith ("Undefined variable: " ^ x)
+
+  let assign x v =
+    replace symbol_table x v
 (* use this to get the line number for the n'th token *)
 let rhs n =
   let pos = Parsing.rhs_start_pos n in
@@ -13,6 +23,10 @@ let parse_error s =
   print_string ("line, "^(string_of_int l)^": "^s^"\n")
 
 type op = Eq | Neq | Lt | Lte | Gt | Gte
+
+
+
+
 let bool2int (b:bool):int = if b then 1 else 0
 let int2bool (i:int):bool = i <> 0
 let binop (i1:int) (b:op) (i2:int):int =
@@ -72,32 +86,57 @@ program:
 stmt :
   /* empty */
   { (Ast.skip, 0) }
-  | RETURN expr SEMI
-      {
-      let res_rstmt : rstmt = Return(Int $2, 0) in
-        (res_rstmt, 0)
-      }
+  /*
+   | VAR ASSIGN expr SEMI
+       {
+        Printf.printf "Math assign";
+            assign $1 $3;
+            Hashtbl.iter (fun x y -> Printf.printf "%s -> %d\n" x y) symbol_table;
+           let r_val : rexp = Int($3) in
+           let r_exp : exp = (r_val, 0) in
+           let res_var = Var($1) in
+           let res_assign : rexp = Assign($1, r_exp) in
+         let res_rstmt : rstmt = Exp(res_assign,0) in
+               (res_rstmt, 0)
+       }
+   | VAR ASSIGN expr SEMI stmt
+           {
+           Printf.printf "Math assign 1\n";
+           assign $1 $3;
+           Hashtbl.iter (fun x y -> Printf.printf "%s -> %d\n" x y) symbol_table;
+           Printf.printf "Lookup return : %d" (lookup $1);
+               let r_val : rexp = Int($3) in
+               let r_exp : exp = (r_val, 0) in
+               let res_var = Var($1) in
+               let res_assign : rexp = Assign($1, r_exp) in
+             let res_rstmt1 : rstmt = Exp(res_assign,0) in
 
-    | expr SEMI
-        {
-          let res_rstmt : rstmt = Exp(Int $1,0) in
-          (res_rstmt, 0)
-        }
-| VAR ASSIGN expr SEMI
-    {
-        let r_val : rexp = Int($3) in
-        let r_exp : exp = (r_val, 0) in
-        let res_var = Var($1) in
-        let res_assign : rexp = Assign($1, r_exp) in
-      let res_rstmt : rstmt = Exp(res_assign,0) in
-            (res_rstmt, 0)
-    }
-    | expr
-    {
-              let res_rstmt : rstmt = Exp(Int $1,0) in
-              (res_rstmt, 0)
-            }
+             let stmt1 : stmt =  (res_rstmt1,0) in
+             let stmt2 : stmt =  $5 in
+                     let res_rstmt : rstmt = Seq(stmt1, stmt2) in
+                     (res_rstmt, 0)
 
+           }*/
+           | RETURN expr SEMI
+                 {
+                 Printf.printf "Math return ";
+                     let res_rstmt : rstmt = Return(Int $2, 0) in
+                       (res_rstmt, 0)
+                 }
+         | expr
+               {
+               Printf.printf "Math expr";
+                 let res_rstmt : rstmt = Exp(Int $1,0) in
+                 (res_rstmt, 0)
+               }
+            | stmt SEMI stmt
+                  {
+                  Printf.printf "Math stmt ; stmt";
+                    let stmt1 : stmt =  $1 in
+                    let stmt2 : stmt =  $3 in
+                    let res_rstmt : rstmt = Seq(stmt1, stmt2) in
+                    (res_rstmt, 0)
+                  }
 
 
 expr :
@@ -117,6 +156,8 @@ expr :
       | expr AND expr { bool2int ((int2bool $1) && (int2bool $3)) }
       | expr OR expr { bool2int ((int2bool $1) || (int2bool $3)) }
       | LPAREN expr RPAREN {$2}
+      | VAR ASSIGN expr { assign $1 $3; 0}
+      | VAR {Printf.printf "Math var" ;lookup $1}
       ;
 
 
