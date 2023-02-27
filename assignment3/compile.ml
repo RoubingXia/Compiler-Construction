@@ -41,7 +41,7 @@ let check_set x =
 let random_not_in_set () : int =
   let rec loop () =
     let r = Random.int 30 in
-    if r <> 1 && r <> 2 && r <> 27 && not (check_set r) then r
+    if r <> 0 && r <> 1 && r <> 2 && r <> 27 && not (check_set r) then r
     else loop ()
   in loop ()
 
@@ -153,10 +153,13 @@ let get_rstmt ((s:rstmt),(pos:int)) : rstmt =
 
 let rec collect_vars2 ((e:rexp),(pos:int)) : unit =
   match e with
-  | Var(var) ->
+  | Var(v) ->
+        let var = "prefix_"^v in
         variables := VarSet.add var !variables
-  | Assign(var, _) ->
-        variables := VarSet.add var !variables
+  | Assign(v, expr) ->
+        let var = "prefix_"^v in
+        variables := VarSet.add var !variables;
+        collect_vars2 expr
   | _ -> ()
 let rec collect_vars (p : Ast.program) : unit =
   let rstatment = get_rstmt p in
@@ -169,8 +172,14 @@ let rec collect_vars (p : Ast.program) : unit =
   | While(_, s) ->
     collect_vars s
   | Exp(expr) -> collect_vars2 expr
+  | For(expr1, _, _, s4) ->
+    let s1 = (Exp(expr1),0) in
+    collect_vars s1;
+    collect_vars s4
   | _ ->
     ()
+
+
 
 
 (* compiles a Fish statement down to a list of MIPS instructions.
@@ -182,9 +191,9 @@ let rec collect_vars (p : Ast.program) : unit =
    match re with
    | Int(n) ->
        [Li(R2, (fromInt n))]
-       (*
-   | Var(v) ->
-       let value = [Li(R2, (fromInt Var(v)))]*)
+   | Var(vn) ->
+        let v = "prefix_"^vn in
+        [La(R2, v); Lw(R2, R2, (fromInt 0))]
    | And(r1, r2) ->
        let tr1 = new_reg() in
        let tr2 = new_reg() in
@@ -194,19 +203,19 @@ let rec collect_vars (p : Ast.program) : unit =
    | Or(r1, r2) ->
         let tr1 = new_reg() in
         let tr2 = new_reg() in
+        let tr3 = new_reg() in
        (compile_expr r1) @ [Add(tr1, R2, Immed((fromInt 0)))] @ (*move R2 to R3*)
        (compile_expr r2) @ [Add(tr2, R2, Immed((fromInt 0)))] @ (*move R2 to R4*)
-       [Or(R2, tr1, Reg(tr2))]
+       [Li(tr3, (fromInt 0)); Sne(tr1, tr1, tr3); Sne(tr2, tr2, tr3)] @ [Or(R2, tr1, Reg(tr2))] (*chekc (r1 != 0) || (r2 != 0)*)
    | Not(r) ->
         let tr1 = new_reg() in
-       (compile_expr r) @ [Add(tr1, R2, Immed((fromInt 0))); Xor(R2, tr1, Immed((fromInt 1)))] (*move R2 to R3, R2 = R3 xor 1; should I consider conflict between registers?*)
+        let tr2 = new_reg() in
+       (compile_expr r) @ [Add(tr1, R2, Immed((fromInt 0))); Li(tr2, (fromInt 0)); Seq(R2, tr1, tr2)] (*move R2 to R3, R2 = R3 xor 1; should I consider conflict between registers?*)
    | Binop(e1, op, e2) ->
         let tr1 = new_reg() in
         let tr2 = new_reg() in
        (compile_expr e1) @ [Add(tr1, R2, Immed((fromInt 0))) ] @
        (compile_expr e2) @ [Add(tr2, R2, Immed((fromInt 0))) ] @
-       (* Plus | Minus | Times | Div          (* +, -, *, /           *)
-         | Eq | Neq | Lt | Lte | Gt | Gte*)
        (match op with
            | Plus -> [ Add(R2, tr1, Reg(tr2)) ]
            | Minus -> [ Sub(R2, tr1, tr2) ]
@@ -218,8 +227,10 @@ let rec collect_vars (p : Ast.program) : unit =
            | Lte -> [ Sle(R2, tr1, tr2) ]
            | Gt -> [ Sgt(R2, tr1, tr2) ]
            | Gte -> [ Sge(R2, tr1, tr2) ])
-   (*| Assign(x, e) ->
-    (compile_expr e) @ [ Store(x, "$2") ]*)
+   | Assign(x, e) ->
+        let tr1 = new_reg() in
+        let v = "prefix_"^x in
+        (compile_expr e) @ [La(tr1, v); Sw(R2, tr1, (fromInt 0))]
 
  let rec compile_stmt ((s,_):Ast.stmt) : inst list =
    match s with
