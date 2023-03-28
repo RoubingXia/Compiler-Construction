@@ -1,10 +1,6 @@
+{
 a = 1;
+
 b = 2;
-c = 0;
-if (a == 1) {
-   c = 1;
+return a;
 }
-else {
-  c = 2;
-}
-return c;

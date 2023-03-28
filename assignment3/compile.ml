@@ -197,36 +197,50 @@ let rec collect_vars (p : Ast.program) : unit =
    | And(r1, r2) ->
        let tr1 = new_reg() in
        let tr2 = new_reg() in
-       (compile_expr r1) @ [Add(tr1, R2, Immed((fromInt 0)))] @ (*move R2 to tr1*)
-       (compile_expr r2) @ [Add(tr2, R2, Immed((fromInt 0)))] @ (*move R2 to tr2*)
-       [And(R2, tr1, Reg(tr2))]
+       let res_list = (compile_expr r1) @ [Add(tr1, R2, Immed((fromInt 0)))] @ (*move R2 to tr1*)
+                             (compile_expr r2) @ [Add(tr2, R2, Immed((fromInt 0)))] @ (*move R2 to tr2*)
+                             [And(R2, tr1, Reg(tr2))] in
+       release_reg tr1;
+       release_reg tr2;
+       res_list
    | Or(r1, r2) ->
         let tr1 = new_reg() in
         let tr2 = new_reg() in
-        let tr3 = new_reg() in
-       (compile_expr r1) @ [Add(tr1, R2, Immed((fromInt 0)))] @ (*move R2 to R3*)
-       (compile_expr r2) @ [Add(tr2, R2, Immed((fromInt 0)))] @ (*move R2 to R4*)
-       [Li(tr3, (fromInt 0)); Sne(tr1, tr1, tr3); Sne(tr2, tr2, tr3)] @ [Or(R2, tr1, Reg(tr2))] (*chekc (r1 != 0) || (r2 != 0)*)
+        let res_list = (compile_expr r1) @ [Add(tr1, R2, Immed((fromInt 0)))] @ (*move R2 to R3*)
+                              (compile_expr r2) @ [Add(tr2, R2, Immed((fromInt 0)))] @ (*move R2 to R4*)
+                              [Sne(tr1, tr1, R0); Sne(tr2, tr2, R0)] @ [Or(R2, tr1, Reg(tr2))] (*chekc (r1 != 0) || (r2 != 0)*) in
+        release_reg tr1;
+        release_reg tr2;
+        res_list
+        (*let tr3 = new_reg() in*)
+
    | Not(r) ->
         let tr1 = new_reg() in
         let tr2 = new_reg() in
-       (compile_expr r) @ [Add(tr1, R2, Immed((fromInt 0))); Li(tr2, (fromInt 0)); Seq(R2, tr1, tr2)] (*move R2 to R3, R2 = R3 xor 1; should I consider conflict between registers?*)
+        let res_list = (compile_expr r) @ [Add(tr1, R2, Immed((fromInt 0))); Li(tr2, (fromInt 0)); Seq(R2, tr1, tr2)] in (*move R2 to R3, R2 = R3 xor 1; should I consider conflict between registers?*)
+        release_reg tr1;
+        release_reg tr2;
+       res_list
    | Binop(e1, op, e2) ->
         let tr1 = new_reg() in
         let tr2 = new_reg() in
-       (compile_expr e1) @ [Add(tr1, R2, Immed((fromInt 0))) ] @
-       (compile_expr e2) @ [Add(tr2, R2, Immed((fromInt 0))) ] @
-       (match op with
-           | Plus -> [ Add(R2, tr1, Reg(tr2)) ]
-           | Minus -> [ Sub(R2, tr1, tr2) ]
-           | Times -> [ Mul(R2, tr1, tr2) ]
-           | Div -> [ Div(R2, tr1, tr2) ]
-           | Eq -> [ Seq(R2, tr1, tr2) ]
-           | Neq -> [ Sne(R2, tr1, tr2) ]
-           | Lt -> [ Slt(R2, tr1, tr2) ]
-           | Lte -> [ Sle(R2, tr1, tr2) ]
-           | Gt -> [ Sgt(R2, tr1, tr2) ]
-           | Gte -> [ Sge(R2, tr1, tr2) ])
+        let res_list = (compile_expr e1) @ [Add(tr1, R2, Immed((fromInt 0))) ] @
+                              (compile_expr e2) @ [Add(tr2, R2, Immed((fromInt 0))) ] @
+                              (match op with
+                                  | Plus -> [ Add(R2, tr1, Reg(tr2)) ]
+                                  | Minus -> [ Sub(R2, tr1, tr2) ]
+                                  | Times -> [ Mul(R2, tr1, tr2) ]
+                                  | Div -> [ Div(R2, tr1, tr2) ]
+                                  | Eq -> [ Seq(R2, tr1, tr2) ]
+                                  | Neq -> [ Sne(R2, tr1, tr2) ]
+                                  | Lt -> [ Slt(R2, tr1, tr2) ]
+                                  | Lte -> [ Sle(R2, tr1, tr2) ]
+                                  | Gt -> [ Sgt(R2, tr1, tr2) ]
+                                  | Gte -> [ Sge(R2, tr1, tr2) ])
+                                  in
+        release_reg tr1;
+        release_reg tr2;
+       res_list
    | Assign(x, e) ->
         let tr1 = new_reg() in
         let v = "prefix_"^x in
