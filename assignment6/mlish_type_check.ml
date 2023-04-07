@@ -30,6 +30,39 @@ and string_of_tipe (t : tipe) : string =
   | Guess_t ({ contents = Some t2' }) ->
            "Guess[" ^ string_of_tipe t2'^ "]"
 
+let rec string_of_exp ((rexp, _): exp) : string =
+  match rexp with
+  | Var v -> v
+  | PrimApp (p, es) ->
+    let es_str = List.map string_of_exp es in
+    let es_str' = String.concat ", " es_str in
+    (match p with
+    | Int i -> string_of_int i
+    | Bool b -> string_of_bool b
+    | Unit -> "()"
+    | Plus -> "(" ^ es_str' ^ ")" ^ " + "
+    | Minus -> "(" ^ es_str' ^ ")" ^ " - "
+    | Times -> "(" ^ es_str' ^ ")" ^ " * "
+    | Div -> "(" ^ es_str' ^ ")" ^ " / "
+    | Eq -> "(" ^ es_str' ^ ")" ^ " = "
+    | Lt -> "(" ^ es_str' ^ ")" ^ " < "
+    | Pair -> "(" ^ es_str' ^ ")"
+    | Fst -> "fst (" ^ es_str' ^ ")"
+    | Snd -> "snd (" ^ es_str' ^ ")"
+    | Nil -> "[]"
+    | Cons -> "[" ^ es_str' ^ "]"
+    | IsNil -> "is_nil (" ^ es_str' ^ ")"
+    | Hd -> "hd (" ^ es_str' ^ ")"
+    | Tl -> "tl (" ^ es_str' ^ ")")
+  | Fn (v, e) -> "fn " ^ v ^ " => " ^ string_of_exp e
+  | App (e1, e2) -> "(" ^ string_of_exp e1 ^ " " ^ string_of_exp e2 ^ ")"
+  | If (e1, e2, e3) -> "if " ^ string_of_exp e1 ^ " then " ^ string_of_exp e2 ^ " else " ^ string_of_exp e3
+  | Let (v, e1, e2) -> "let " ^ v ^ " = " ^ string_of_exp e1 ^ " in " ^ string_of_exp e2
+
+let string_of_exps (es: exp list) : string =
+  let es_str = List.map string_of_exp es in
+  String.concat ";\n" es_str
+
 
 let rec type_eq (t1 : tipe) (t2 : tipe) : bool =
   print_string("\n Inside type_eq  branch, t1 is : "^tipe2string(t1)^"\n t2 is :"^tipe2string(t2)^"\n ");
@@ -426,11 +459,17 @@ let type_check_exp (e : exp) : tipe =
          if unify t1 (Fn_t(t2,t)) then t
          else type_error("Fail with App match t1 with guess")
     | (If (e1, e2, e3), _) ->
-        print_string "\n match If\n";
+        print_string ("\n match If, e1 is : "^string_of_exp(e1)^"\n e2 is : "^string_of_exp(e2)^"\n e3 is : "^string_of_exp(e3)^"\n");
             let t1 = type_check_exp' e1 env in
             let t2 = type_check_exp' e2 env in
             let t3 = type_check_exp' e3 env in
+        print_string("\n match If, t1 is : "^string_of_tipe(t1)^"\n t2 is : "^string_of_tipe(t2)^"\n t3 is : "^string_of_tipe(t3)^"\n");
             let t = Guess_t(ref None) in
+            (*t1 must be a bool*)
+            (match t1 with
+            | Guess_t r when !r = None ->
+                r:= Some Bool_t
+            | _ -> ());
             if unify t2 t3 then t2
             else type_error "Type error: Invalid argument types for If expression"
     | (Let (x, e1, e2), _) ->
