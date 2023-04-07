@@ -1,8 +1,10 @@
 open Mlish_ast
 
 exception TypeError
-let type_error(s:string) = (print_string s; raise TypeError)
-
+let type_error(s:string) = ((*print_string s;*) raise TypeError)
+let log_open = false
+let m_print(s:string) =
+    if (log_open) then print_string(s)
 (*
     ChapGPT and I wrote this code together,
     and now both of us don't understand WTF this code is doing, but somehow it still works
@@ -65,7 +67,7 @@ let string_of_exps (es: exp list) : string =
 
 
 let rec type_eq (t1 : tipe) (t2 : tipe) : bool =
-  print_string("\n Inside type_eq  branch, t1 is : "^tipe2string(t1)^"\n t2 is :"^tipe2string(t2)^"\n ");
+  m_print("\n Inside type_eq  branch, t1 is : "^tipe2string(t1)^"\n t2 is :"^tipe2string(t2)^"\n ");
   match (t1, t2) with
   | Tvar_t tv1, Tvar_t tv2 -> tv1 = tv2
   | Int_t, Int_t -> true
@@ -85,24 +87,24 @@ let rec type_eq (t1 : tipe) (t2 : tipe) : bool =
 
 
 let rec unify (t1 : tipe) (t2 : tipe) : bool =
-   print_string("\n Inside unify, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n");
-  if t1 == t2 then (print_string("\n Inside unify then branch \n"); true)
+   m_print("\n Inside unify, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n");
+  if t1 == t2 then (m_print("\n Inside unify then branch \n"); true)
   else
-    (print_string("\n Inside unify else branch \n");
+    (m_print("\n Inside unify else branch \n");
     match (t1, t2) with
     | Guess_t ({ contents = Some t1' }), _ ->
-         print_string("\n Inside Unify Match a guess, _ \n");
+         m_print("\n Inside Unify Match a guess, _ \n");
         unify t1' t2
     |  Guess_t r, t2 when !r = None ->
-              print_string("\n Inside Unify Match a empty guess, _ \n");
+              m_print("\n Inside Unify Match a empty guess, _ \n");
               r := Some t2;
               true
     |  t1, Guess_t r when !r = None ->
-                  print_string("\n Inside Unify Match a empty guess, _  2, will this lead some bugs??\n");
+                  m_print("\n Inside Unify Match a empty guess, _  2, will this lead some bugs??\n");
                   r := Some t1;
                   true
     | _, Guess_t ({ contents = Some t2' }) ->
-        print_string("\n Inside Unify Match a _ guess \n");
+        m_print("\n Inside Unify Match a _ guess \n");
         unify t2' t1
     | Int_t, Int_t ->
         true
@@ -115,7 +117,7 @@ let rec unify (t1 : tipe) (t2 : tipe) : bool =
     | List_t (t1a), List_t (t2a) ->
         unify t1a t2a
     | _ ->
-        print_string("\nUnify return false, t1 is : "^(string_of_tipe t1)^"\n t2 is :"^(string_of_tipe t2)^"\n" );
+        m_print("\nUnify return false, t1 is : "^(string_of_tipe t1)^"\n t2 is :"^(string_of_tipe t2)^"\n" );
         false)
 
 
@@ -136,7 +138,7 @@ let string_of_substitution (s: (tvar * tipe) list) : string =
 
 
 let rec substitute (s: (tvar * tipe) list) (t: tipe) : tipe =
-  print_string("\n Inside substitue, s is : "^string_of_substitution(s)^"\n t is : "^string_of_tipe(t)^"\n");
+  m_print("\n Inside substitue, s is : "^string_of_substitution(s)^"\n t is : "^string_of_tipe(t)^"\n");
   match t with
   | Tvar_t a -> (try List.assoc a s with Not_found -> t)
   | Int_t -> Int_t
@@ -145,16 +147,16 @@ let rec substitute (s: (tvar * tipe) list) (t: tipe) : tipe =
   | Fn_t (t1, t2) -> Fn_t (substitute s t1, substitute s t2)
   | Pair_t (t1, t2) -> Pair_t (substitute s t1, substitute s t2)
   | List_t t' -> List_t (substitute s t')
-  | Guess_t r -> print_string("\n I am guess type inside substitue\n"); Guess_t r (* no substitution for guess types *)
+  | Guess_t r -> m_print("\n I am guess type inside substitue\n"); Guess_t r (* no substitution for guess types *)
 
 
 let instantiate (s: tipe_scheme): tipe =
   match s with
   | Forall (vs, t) ->
-    print_string("\n in instantiate, the input scheme is : "^string_of_tipe_scheme(s)^"\n");
-    print_string("\n in instantiate, the input t is : "^string_of_tipe(t)^"\n");
+    m_print("\n in instantiate, the input scheme is : "^string_of_tipe_scheme(s)^"\n");
+    m_print("\n in instantiate, the input t is : "^string_of_tipe(t)^"\n");
     let b = List.map (fun a -> (a, Guess_t (ref None))) vs in
-    print_string("\n in instantiate, after map the input t is : "^string_of_tipe(t)^"\n");
+    m_print("\n in instantiate, after map the input t is : "^string_of_tipe(t)^"\n");
     substitute b t
 
 
@@ -164,7 +166,7 @@ let rec lookup (x : var) (env : (var * tipe_scheme) list) : tipe_scheme =
       failwith ("Variable " ^ x ^ " not found in environment")
   | (y, scheme) :: rest ->
       if x = y then
-        (print_string("in lookup, scheme for "^y^" is :"^string_of_tipe_scheme(scheme));
+        (m_print("in lookup, scheme for "^y^" is :"^string_of_tipe_scheme(scheme));
         scheme) else lookup x rest
 
 (*update scheme of var in env from Forall(list, g) to Forall(list, t)*)
@@ -265,25 +267,25 @@ let prim_to_tipe p ts =
         (match (List.hd ts) with
              | Pair_t(t1, t2) -> t1
              | Guess_t r when !r = None ->
-                 print_string("\n Match None guess in prim_to_tipe ");
+                 m_print("\n Match None guess in prim_to_tipe ");
                  Bool_t;
               | Tvar_t t ->
-                              print_string("\n Match Tvar in prim_to_tipe ");
+                              m_print("\n Match Tvar in prim_to_tipe ");
                               Bool_t;
-                | Int_t ->  print_string("\n Match Int in prim_to_tipe ");
+                | Int_t ->  m_print("\n Match Int in prim_to_tipe ");
                                                          Bool_t;
-                | Bool_t ->  print_string("\n Match Bool in prim_to_tipe ");
+                | Bool_t ->  m_print("\n Match Bool in prim_to_tipe ");
                                                           Bool_t;
-                | Unit_t ->  print_string("\n Match Unin in prim_to_tipe ");
+                | Unit_t ->  m_print("\n Match Unin in prim_to_tipe ");
                                                           Bool_t;
-                | Fn_t (t1, t2) ->  print_string("\n Match Fn in prim_to_tipe ");
+                | Fn_t (t1, t2) ->  m_print("\n Match Fn in prim_to_tipe ");
                                                                  Bool_t;
-                | Pair_t (t1, t2) ->  print_string("\n Match Pair in prim_to_tipe ");
+                | Pair_t (t1, t2) ->  m_print("\n Match Pair in prim_to_tipe ");
                                                                    Bool_t;
-                | List_t t ->  print_string("\n Match List in prim_to_tipe ");
+                | List_t t ->  m_print("\n Match List in prim_to_tipe ");
                                                             Bool_t;
                 | Guess_t ({ contents = Some t2' }) ->
-                    print_string("\n Match Some Guess in prim_to_tipe the content of guess is :"^string_of_tipe(t2'));
+                    m_print("\n Match Some Guess in prim_to_tipe the content of guess is :"^string_of_tipe(t2'));
                                                  Bool_t;
              | _ -> type_error("\n Failed location 004"^(tipe2string (List.hd ts))))
   | Snd ->
@@ -308,13 +310,12 @@ let type_check_exp (e : exp) : tipe =
   let rec type_check_exp' (e : exp) (env : (var * tipe_scheme) list) : tipe =
     match e with
     | (Var x, _) ->
-      print_string "\n Match Var\n";
+      m_print "\n Match Var\n";
       let res = instantiate(lookup x env) in
-      print_string ("res is :"^string_of_tipe(res));
+      m_print ("res is :"^string_of_tipe(res));
       res
     | (PrimApp (p, es), _) ->
-        print_string ("\n Match PrimApp (p, es)\n    p is : "^(prim_to_string p)^"\n    es is : ");
-        print_exp_list es;
+        m_print ("\n Match PrimApp (p, es)\n    p is : "^(prim_to_string p)^"\n    es is : "^string_of_exps(es));
         (match p with
           | Int _ -> Int_t
           | Bool _ -> Bool_t
@@ -324,6 +325,7 @@ let type_check_exp (e : exp) : tipe =
              let rec unwrap_list_t t =
                match t with
                | List_t t' -> unwrap_list_t t'
+               | Guess_t ({ contents = Some t' })  -> unwrap_list_t t'
                | _ -> t
              in
              (*check if the last element is "Nil" or List_t,
@@ -331,7 +333,7 @@ let type_check_exp (e : exp) : tipe =
              Every element except Nil should be the same type*)
              let all_same_unwrapped_type ts =
                let unwrapped_ts = List.map unwrap_list_t ts in
-               print_string("\n The flattened list is : "^tipe_list_to_string(unwrapped_ts)^"\n");
+               m_print("\n The flattened list is : "^tipe_list_to_string(unwrapped_ts)^"\n");
                 let last = List.hd (List.rev unwrapped_ts) in
                let ts = (match last with
                | Tvar_t(v) -> List.tl (List.rev unwrapped_ts)
@@ -350,33 +352,43 @@ let type_check_exp (e : exp) : tipe =
                 let tail = (match last with
                 | Tvar_t(v) -> v
                 | List_t(t) -> "List"
+                | Guess_t ({ contents = Some t' })  -> "Some Guess"
                 | _ -> "error") in
-                print_string("\n The tail is : "^tail^"\n");
+                m_print("\n The tail is : "^tail^"\n");
                 match tail with
                 | "Nil" -> true
                 | "List" -> true
+                | "Some Guess" -> true
                 | _ -> false
               in
-             print_string("\n the list is : "^tipe_list_to_string(ts)^"\n");
+             m_print("\n the list is : "^tipe_list_to_string(ts)^"\n");
              if (all_same_unwrapped_type ts) && (has_nil ts) then List_t(List.hd ts) else type_error("\n Failed location 012")
           | Plus | Minus | Times | Div ->
              let ts = List.map (fun e -> type_check_exp' e env) es in
              (match ts with
              | [t1; t2] ->
                 (match (t1, t2) with
+                (*The result must be int, and input must be int *)
+                | Guess_t r1, Guess_t r2 when !r1 = None && !r2 = None ->
+                                     m_print("\n Inside PrimApp  Match two empty guesses \n");
+                                     r1:= Some Int_t;
+                                     r2:= Some Int_t;
+                                     t1;
                 | Guess_t r, t2 when !r = None ->
-                    print_string("\n Inside PrimApp  Match a guess and _ \n");
-                    r:= Some t2;
-                    t2;
+                    m_print("\n Inside PrimApp  Match a guess and _ \n the guess is : "^string_of_tipe(t1)^"\n and the t2 is : "^string_of_tipe(t2)^"\n");
+                    r:= Some Int_t;
+                    if (unify t1 t2) then t2 else type_error("\n Failed location 014, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n")
                 | t1, Guess_t r when !r = None ->
-                     print_string("\n Inside PrimApp  Match a _ and guess \n");
-                     r:= Some t1;
-                     t1;
-                | t1, t2 -> if t1 = t2 then t1 else type_error("\n Failed location 013, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n")
+                     m_print("\n Inside PrimApp  Match a _ and guess \n the t1 is : "^string_of_tipe(t1)^"\n and the guess is : "^string_of_tipe(t2)^"\n");
+                     r:= Some Int_t;
+                     if (unify t1 t2) then t1 else type_error("\n Failed location 015, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n")
+                | t1, t2 ->
+                    m_print("\n Inside PrimApp  Match t1 , t2 \n the t1 is : "^string_of_tipe(t1)^"\n and the t2 is : "^string_of_tipe(t2)^"\n");
+                    if t1 = t2 then t1 else type_error("\n Failed location 013, t1 is : "^string_of_tipe(t1)^"\n t2 is :"^string_of_tipe(t2)^"\n")
                 )
              | _ -> type_error("Failed location 002"))
           | Nil -> Tvar_t("Nil")
-          | Eq | Lt -> Int_t
+          | Eq | Lt -> Bool_t
           | Pair ->
              let ts = List.map (fun e -> type_check_exp' e env) es in
              (match ts with
@@ -429,53 +441,51 @@ let type_check_exp (e : exp) : tipe =
                  let get_var_from_exp_list (exps : exp list) : var =
                        match exps with
                        | [Var x, _] -> x
-                       | _ -> type_error("Failed location 011")
+                       | _ -> type_error("Failed location 016")
                  in
                  let vname = get_var_from_exp_list es in
                  update_env vname env (List_t(g1));
-                 g1;
+                 List_t(g1);
           )
     | (Fn (x, e), _) ->
-        print_string "\n Match Fn (x, e) \n";
-        print_string("    x is : "^x);
-                 print_string("\n    e is : ");
-          print_exp e;
+        m_print "\n Match Fn (x, e) \n";
+        m_print("    x is : "^x);
+                 m_print("\n    e is : "^string_of_exp(e));
           let g = Guess_t(ref None) in
          (* let tvar = Tvar_t (ppfreshtvar ()) in*)
           let env' = (x, Forall ([], g)) :: env in
           let body_tipe = type_check_exp' e env' in
           Fn_t (g, body_tipe);
     | (App (e1, e2), _) ->
-        print_string "\n Match App (e1, e2)\n";
-         print_string("    e1 is : ");
-         print_exp e1;
-         print_string("\n    e2 is : ");
-         print_exp e2;
+        m_print "\n Match App (e1, e2)\n";
+         m_print("    e1 is : "^string_of_exp(e1)^"\n");
+         m_print("\n    e2 is : "^string_of_exp(e2)^"\n");
          let t1 = type_check_exp' e1 env in
-         print_string("\n after check e1, I got t1 is :"^string_of_tipe(t1)^"\n");
+         m_print("\n after check e1, I got t1 is :"^string_of_tipe(t1)^"\n");
          let t2 = type_check_exp' e2 env in
-         print_string("\n after check e2, I got t2 is :"^string_of_tipe(t2)^"\n");
-         print_string("\n Before unify t1 is : "^string_of_tipe(t1)^" and t2 is : "^string_of_tipe(t2));
+         m_print("\n after check e2, I got t2 is :"^string_of_tipe(t2)^"\n");
+         m_print("\n Before unify t1 is : "^string_of_tipe(t1)^" and t2 is : "^string_of_tipe(t2));
          let t = Guess_t(ref None)
          in
          if unify t1 (Fn_t(t2,t)) then t
          else type_error("Fail with App match t1 with guess")
     | (If (e1, e2, e3), _) ->
-        print_string ("\n match If, e1 is : "^string_of_exp(e1)^"\n e2 is : "^string_of_exp(e2)^"\n e3 is : "^string_of_exp(e3)^"\n");
+        m_print ("\n match If, e1 is : "^string_of_exp(e1)^"\n e2 is : "^string_of_exp(e2)^"\n e3 is : "^string_of_exp(e3)^"\n");
             let t1 = type_check_exp' e1 env in
             let t2 = type_check_exp' e2 env in
             let t3 = type_check_exp' e3 env in
-        print_string("\n match If, t1 is : "^string_of_tipe(t1)^"\n t2 is : "^string_of_tipe(t2)^"\n t3 is : "^string_of_tipe(t3)^"\n");
+        m_print("\n match If, t1 is : "^string_of_tipe(t1)^"\n t2 is : "^string_of_tipe(t2)^"\n t3 is : "^string_of_tipe(t3)^"\n");
             let t = Guess_t(ref None) in
             (*t1 must be a bool*)
             (match t1 with
             | Guess_t r when !r = None ->
                 r:= Some Bool_t
-            | _ -> ());
+            | Bool_t -> ();
+            | _ -> type_error "Type error: Invalid argument types for If expression 015");
             if unify t2 t3 then t2
             else type_error "Type error: Invalid argument types for If expression"
     | (Let (x, e1, e2), _) ->
-        print_string "\n match Let\n";
+        m_print "\n match Let\n";
                    Tvar_t("")
   in
   let t = type_check_exp' e [] in
