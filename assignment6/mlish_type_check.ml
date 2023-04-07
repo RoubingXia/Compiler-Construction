@@ -123,8 +123,8 @@ let rec unify (t1 : tipe) (t2 : tipe) : bool =
 let rec tipe_list_to_string (tl : tipe list) : string =
   match tl with
   | [] -> ""
-  | [t] -> tipe2string t
-  | t :: tl' -> tipe2string t ^ ", " ^ tipe_list_to_string tl'
+  | [t] -> string_of_tipe t
+  | t :: tl' -> string_of_tipe t ^ ", " ^ tipe_list_to_string tl'
 
 
 let string_of_substitution (s: (tvar * tipe) list) : string =
@@ -329,9 +329,7 @@ let type_check_exp (e : exp) : tipe =
              (*check if the last element is "Nil" or List_t,
              if not, type check should fail;
              Every element except Nil should be the same type*)
-
              let all_same_unwrapped_type ts =
-
                let unwrapped_ts = List.map unwrap_list_t ts in
                print_string("\n The flattened list is : "^tipe_list_to_string(unwrapped_ts)^"\n");
                 let last = List.hd (List.rev unwrapped_ts) in
@@ -340,7 +338,12 @@ let type_check_exp (e : exp) : tipe =
                | _ -> unwrapped_ts) in
                match ts with
                | [] -> true
-               | h::t -> List.for_all (fun t' -> t' = h) t
+               | h::t -> List.for_all (fun t' ->
+                (*every t should
+                    either:  be the same type with h
+                    or:   one of t and h should be empty guess, do association here*)
+                    unify t' h
+                                      ) t
              in
              let has_nil ts =
                 let last = List.hd (List.rev ts) in
@@ -354,7 +357,6 @@ let type_check_exp (e : exp) : tipe =
                 | "List" -> true
                 | _ -> false
               in
-
              print_string("\n the list is : "^tipe_list_to_string(ts)^"\n");
              if (all_same_unwrapped_type ts) && (has_nil ts) then List_t(List.hd ts) else type_error("\n Failed location 012")
           | Plus | Minus | Times | Div ->
