@@ -1,16 +1,14 @@
 open Mlish_ast
 
 exception TypeError
-let type_error(s:string) = ((*print_string s;*) raise TypeError)
-let log_open = false
+let type_error(s:string) = (print_string s; raise TypeError)
+let log_open = true
 let m_print(s:string) =
     if (log_open) then print_string(s)
-(*
-    ChapGPT and I wrote this code together,
-    and now both of us don't understand WTF this code is doing, but somehow it still works
-    *)
 
-
+(**********************************************************)
+(* Pretty printing                                        *)
+(**********************************************************)
 let rec string_of_tipe_scheme (ts : tipe_scheme) : string =
   match ts with
   | Forall ([], t) -> "Forall([], t): [], t is :"^string_of_tipe t
@@ -64,6 +62,47 @@ let rec string_of_exp ((rexp, _): exp) : string =
 let string_of_exps (es: exp list) : string =
   let es_str = List.map string_of_exp es in
   String.concat ";\n" es_str
+
+let rec tipe_list_to_string (tl : tipe list) : string =
+  match tl with
+  | [] -> ""
+  | [t] -> string_of_tipe t
+  | t :: tl' -> string_of_tipe t ^ ", " ^ tipe_list_to_string tl'
+
+let string_of_substitution (s: (tvar * tipe) list) : string =
+  let string_of_pair (tv, t) =
+    tv ^ " -> " ^ string_of_tipe t
+  in
+  String.concat ", " (List.map string_of_pair s)
+
+let prim_to_string = function
+  | Int i -> string_of_int i
+  | Bool b -> if b then "true" else "false"
+  | Unit -> "()"
+  | Plus -> "Plus"
+  | Minus -> "Minus"
+  | Times -> "Times"
+  | Div -> "Div"
+  | Eq -> "Eq"
+  | Lt -> "Lt"
+  | Pair -> "Pair"
+  | Fst -> "Fst"
+  | Snd -> "Snd"
+  | Nil -> "Nil"
+  | Cons -> "Cons"
+  | IsNil -> "IsNil"
+  | Hd -> "Hd"
+  | Tl -> "Tl"
+
+let string_of_env (env : (var * tipe_scheme) list) : string =
+  let string_of_binding ((x, t) : var * tipe_scheme) : string =
+    x ^ " : " ^ (string_of_tipe_scheme t)
+  in
+  String.concat ", " (List.map string_of_binding env)
+
+(**********************************************************)
+(* Pretty printing end                                    *)
+(**********************************************************)
 
 
 let rec type_eq (t1 : tipe) (t2 : tipe) : bool =
@@ -121,22 +160,6 @@ let rec unify (t1 : tipe) (t2 : tipe) : bool =
         false)
 
 
-
-let rec tipe_list_to_string (tl : tipe list) : string =
-  match tl with
-  | [] -> ""
-  | [t] -> string_of_tipe t
-  | t :: tl' -> string_of_tipe t ^ ", " ^ tipe_list_to_string tl'
-
-
-let string_of_substitution (s: (tvar * tipe) list) : string =
-  let string_of_pair (tv, t) =
-    tv ^ " -> " ^ string_of_tipe t
-  in
-  String.concat ", " (List.map string_of_pair s)
-
-
-
 let rec substitute (s: (tvar * tipe) list) (t: tipe) : tipe =
   m_print("\n Inside substitue, s is : "^string_of_substitution(s)^"\n t is : "^string_of_tipe(t)^"\n");
   match t with
@@ -158,6 +181,56 @@ let instantiate (s: tipe_scheme): tipe =
     let b = List.map (fun a -> (a, Guess_t (ref None))) vs in
     m_print("\n in instantiate, after map the input t is : "^string_of_tipe(t)^"\n");
     substitute b t
+
+
+module Tvset = Set.Make(struct
+  type t = tvar
+  let compare = String.compare
+end)
+
+
+let rec subst_tvars s t =
+  match t with
+  | Tvar_t tv -> (try List.assoc tv s with Not_found -> t)
+  | Int_t | Bool_t | Unit_t -> t
+  | Fn_t (t1, t2) -> Fn_t (subst_tvars s t1, subst_tvars s t2)
+  | Pair_t (t1, t2) -> Pair_t (subst_tvars s t1, subst_tvars s t2)
+  | List_t t' -> List_t (subst_tvars s t')
+  | Guess_t _ -> t (* ignore guess types for substitution *)
+
+let generalize (env : (var * tipe_scheme) list) (t : tipe) : tipe_scheme =
+  let tvars_of_tipe t =
+    let rec tvars_of_tipe_acc t acc =
+      match t with
+      | Tvar_t tv -> Tvset.add tv acc
+      | Int_t | Bool_t | Unit_t -> acc
+      | Fn_t (t1, t2) | Pair_t (t1, t2) -> tvars_of_tipe_acc t1 (tvars_of_tipe_acc t2 acc)
+      | List_t t' -> tvars_of_tipe_acc t' acc
+      | Guess_t _ -> acc (* ignore guess types for generalization *)
+    in tvars_of_tipe_acc t Tvset.empty
+  in
+
+  let tvars_of_env =
+    let all_tvars =
+      List.fold_left
+        (fun acc (_, t) -> Tvset.union acc (tvars_of_tipe (instantiate t)))
+        Tvset.empty env
+    in
+      let tvars_of_t = tvars_of_tipe t in
+      let tvars_of_t_list = Tvset.elements tvars_of_t in
+      List.fold_left
+        (fun acc tv -> Tvset.remove tv acc)
+        all_tvars tvars_of_t_list
+  in
+  let tvars = Tvset.elements tvars_of_env in
+  let new_tvars = List.map (fun tv -> (tv, ppfreshtvar ())) tvars in
+  let t' = subst_tvars (List.combine tvars (List.map (fun (tv, new_tv) -> Tvar_t new_tv) new_tvars)) t in
+  let string_of_new_tvars (new_tvars : (tvar * tvar) list) : string =
+    let pair_to_string (tv1, tv2) = tv1 ^ " -> " ^ tv2 in
+    let str_list = List.map pair_to_string new_tvars in
+    "[" ^ String.concat ", " str_list ^ "]" in
+  m_print("\n In generalize new_tvars is : "^string_of_new_tvars(new_tvars)^"\n\t t' is : "^string_of_tipe(t')^"\n");
+  Forall (List.map snd new_tvars, t')
 
 
 let rec lookup (x : var) (env : (var * tipe_scheme) list) : tipe_scheme =
@@ -184,126 +257,6 @@ let rec update_env (x : var) (env : (var * tipe_scheme) list) (t : tipe) : unit 
             | _ -> type_error("In update_env, meet a non-empty guess1"))
         | _ -> type_error("In update_env, meet a non-empty guess2"))
       else update_env x rest t
-
-
-let prim_to_string = function
-  | Int i -> string_of_int i
-  | Bool b -> if b then "true" else "false"
-  | Unit -> "()"
-  | Plus -> "Plus"
-  | Minus -> "Minus"
-  | Times -> "Times"
-  | Div -> "Div"
-  | Eq -> "Eq"
-  | Lt -> "Lt"
-  | Pair -> "Pair"
-  | Fst -> "Fst"
-  | Snd -> "Snd"
-  | Nil -> "Nil"
-  | Cons -> "Cons"
-  | IsNil -> "IsNil"
-  | Hd -> "Hd"
-  | Tl -> "Tl"
-
-
-let rec print_exp (e: exp) : unit =
-  match e with
-  | Var x, _ -> print_string x
-  | PrimApp (p, es), _ ->
-      print_string (prim_to_string p);
-      print_string "(";
-      List.iter (fun e -> print_exp e; print_string ", ") es;
-      print_string ")"
-  | Fn (x, e), _ ->
-      print_string "fn ";
-      print_string x;
-      print_string " => ";
-      print_exp e
-  | App (e1, e2), _ ->
-      print_exp e1;
-      print_string " ";
-      print_exp e2
-  | If (e1, e2, e3), _ ->
-      print_string "if ";
-      print_exp e1;
-      print_string " then ";
-      print_exp e2;
-      print_string " else ";
-      print_exp e3
-  | Let (x, e1, e2), _ ->
-      print_string "let ";
-      print_string x;
-      print_string " = ";
-      print_exp e1;
-      print_string " in ";
-      print_exp e2
-
-
-let rec print_exp_list = function
-  | [] -> ()
-  | e :: es ->
-      let _ = print_exp e in
-      let _ = print_string ";\n" in
-      print_exp_list es
-
-
-let prim_to_tipe p ts =
-  match p with
-  | Int _ -> Int_t
-  | Bool _ -> Bool_t
-  | Unit -> Unit_t
-  | Cons -> List_t(List.hd ts)
-  | Plus | Minus | Times | Div ->
-     (match ts with
-     | [t1; t2] -> if t1 = t2 then t1 else type_error("Failed location 001")
-     | _ -> type_error("Failed location 002"))
-  | Nil -> Int_t
-  | Eq | Lt -> Int_t
-  | Pair -> (match ts with
-                 | [t1; t2] -> Pair_t(t1, t2)
-                 | _ -> type_error("Failed location 003"))
-
-  | Fst ->
-        (match (List.hd ts) with
-             | Pair_t(t1, t2) -> t1
-             | Guess_t r when !r = None ->
-                 m_print("\n Match None guess in prim_to_tipe ");
-                 Bool_t;
-              | Tvar_t t ->
-                              m_print("\n Match Tvar in prim_to_tipe ");
-                              Bool_t;
-                | Int_t ->  m_print("\n Match Int in prim_to_tipe ");
-                                                         Bool_t;
-                | Bool_t ->  m_print("\n Match Bool in prim_to_tipe ");
-                                                          Bool_t;
-                | Unit_t ->  m_print("\n Match Unin in prim_to_tipe ");
-                                                          Bool_t;
-                | Fn_t (t1, t2) ->  m_print("\n Match Fn in prim_to_tipe ");
-                                                                 Bool_t;
-                | Pair_t (t1, t2) ->  m_print("\n Match Pair in prim_to_tipe ");
-                                                                   Bool_t;
-                | List_t t ->  m_print("\n Match List in prim_to_tipe ");
-                                                            Bool_t;
-                | Guess_t ({ contents = Some t2' }) ->
-                    m_print("\n Match Some Guess in prim_to_tipe the content of guess is :"^string_of_tipe(t2'));
-                                                 Bool_t;
-             | _ -> type_error("\n Failed location 004"^(tipe2string (List.hd ts))))
-  | Snd ->
-        (match (List.hd ts) with
-            | Pair_t(t1, t2) -> t2
-            | _ -> type_error("Failed location 005"))
-  | IsNil ->
-        (match (List.hd ts)  with
-            | List_t(t1) -> Bool_t
-            | _ -> type_error("Failed location 006"))
-  | Hd ->
-        (match (List.hd ts)  with
-          | List_t(t1) -> Bool_t
-          | _ -> type_error("Failed location 007"))
-  | Tl ->
-        (match (List.hd ts)  with
-          | List_t(t1) -> Bool_t
-          | _ -> type_error("Failed location 008"))
 
 
 let type_check_exp (e : exp) : tipe =
@@ -485,8 +438,13 @@ let type_check_exp (e : exp) : tipe =
             if unify t2 t3 then t2
             else type_error "Type error: Invalid argument types for If expression"
     | (Let (x, e1, e2), _) ->
-        m_print "\n match Let\n";
-                   Tvar_t("")
+        m_print ("\n Match Let \n\t x is : "^x^"\n\t e1 is :"^string_of_exp(e1)^"\n\t e2 is : "^string_of_exp(e2)^"\n");
+        let t1 = type_check_exp' e1 env in
+        let s = generalize env t1 in
+        m_print ("\n\t The s looks like : \n\t "^string_of_tipe_scheme(s)^"\n");
+        let env' = (x, s) :: env in
+        m_print ("\n\t The env looks like : \n\t "^string_of_env(env')^"\n");
+        type_check_exp' e2 env'
   in
   let t = type_check_exp' e [] in
   t
