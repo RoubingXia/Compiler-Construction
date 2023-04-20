@@ -29,3 +29,12 @@ $22 := x8
 $23 := x9
 return
 
+
+ block graph starts: 
+{
+.L0 : {}
+.L1 : {.L0}
+main : {.L0}
+}
+
+ So high: I am the starting node block: .L0
