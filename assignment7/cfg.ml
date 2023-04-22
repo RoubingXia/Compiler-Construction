@@ -31,6 +31,15 @@ let call_kill_list = ["$1";"$2";"$3";"$4";"$5";"$6";"$7";"$8";"$9";"$10";
 
 module IUGraph = Graph.UndirectedGraph(IGraphNode)
 
+let clear_file =
+  let oc = open_out "log.txt" in
+  close_out oc
+
+let write_to_file (str: string) : unit =
+  let oc = open_out_gen [Open_wronly; Open_creat; Open_append] 0o666 "log.txt" in
+  output_string oc str;
+  close_out oc
+
 (* this is a wrapper to addEdge that prevents adding self edges.
    to do all sorts of other complicated stuff for eg coloring *)
 let specialAddEdge u v g =
@@ -64,12 +73,12 @@ let string_of_igraph (g: interfere_graph) : string =
 module IDGraph = Graph.DirectedGraph(IGraphNode)
 type block_graph = IDGraph.graph
 
-module IGraphNode = struct
-  type t = igraph_node
-  let compare = compare
-end
 
-module NodeSet = Set.Make(IGraphNode)
+let copy_nodeset (set1 : NodeSet.t ref) (set2 : NodeSet.t ref) : unit =
+    (*copy set1 to set2*)
+  set2 := NodeSet.empty; (* clear set2 *)
+  NodeSet.iter (fun x -> set2 := NodeSet.add x !set2) !set1 (* add elements from set1 to set2 *)
+
 
 let node_sets_equal set1 set2 =
   let sorted_list1 = List.sort compare (NodeSet.elements set1) in
@@ -87,11 +96,12 @@ let string_of_igraph2 (g: block_graph) : string =
   let rows = String.concat "\n" (List.map string_of_row (NodeSet.elements (IDGraph.nodes g))) in
   Printf.sprintf "{\n%s\n}" rows
 
+
 let find_label (block: block) : label =
   let rec helper block =
     match block with
     | Label l :: _ -> l
-    | [] -> raise Implement_Me
+    | [] -> write_to_file("\n Fatal error 0001\n"); raise Implement_Me
     | _ :: rest -> helper rest
   in
   helper block
@@ -104,14 +114,7 @@ let rec find_jump_labels block =
   | _ :: rest -> find_jump_labels rest
 
 
-let clear_file =
-  let oc = open_out "log.txt" in
-  close_out oc
 
-let write_to_file (str: string) : unit =
-  let oc = open_out_gen [Open_wronly; Open_creat; Open_append] 0o666 "log.txt" in
-  output_string oc str;
-  close_out oc
 
 let reg_node v =
   match v with
@@ -147,7 +150,7 @@ let reg_node v =
   | 29 -> RegNode(Mips.R29)
   | 30 -> RegNode(Mips.R30)
   | 31 -> RegNode(Mips.R31)
-  | _ -> raise Implement_Me
+  | _ ->  write_to_file("\n Fatal error 0002\n"); raise Implement_Me
 
 (* given a function (i.e., list of basic blocks), construct the
  * interference graph for that function.  This will require that
@@ -203,67 +206,118 @@ let build_interfere_graph (f : func) : interfere_graph =
         node_with_least_succ g nodes;
     in
     let start_node = get_start_block result_block_graph in
-     write_to_file("\n I am so high: I am the starting node block: "^ (string_of_node start_node));
-(* So that's why
+     write_to_file("\n I am the starting node block: "^ (string_of_node start_node));
 
-initialize LiveIn[L] := Gen[L].
-initialize LiveOut[L] := { }.
-loop until no change {
-for each L:
-Out := LiveIn[L1]  ...  LiveIn[Ln]
-where succ[L] = {L1,...,Ln}
-if Out == LiveOut[L] then continue to next block.
-LiveOut[L] := Out.
-LiveIn[L] := Gen[L]  (LiveOut[L] - Kill[L]).
-}
+    let ref_graph = ref IUGraph.empty in
+    let initLiveSet = ref NodeSet.empty in
+    (* Generate nodes and edges based on this block*)
+    let block_liveness_check (b : block) (ref_g : interfere_graph ref) (liveSet : NodeSet.t ref)=
+        (*iterate the inst from last to first, if meet an assignment statement like
+        x = y + z, create sets gen(y, z) kill(x), calculate Live set for next inst, create
+        edges for x *)
+        write_to_file("\n Process block : "^find_label(b)^"\n");
+        let build_edges (n : igraph_node) (liveSet : NodeSet.t) (ref_g : interfere_graph ref) =
+            (*build edges between n and all nodes in liveSet*)
+            List.iter (fun dst -> ref_g := specialAddEdge n dst !ref_g) (NodeSet.elements liveSet);
+        in
+        let liveness_check (instruction : inst) =
+            (* create gen and kill for current instruction *)
+            let gen = ref NodeSet.empty in
+            let kill = ref NodeSet.empty in
+            (match instruction with
+            | Move(op1, op2)  (* x := y *) ->
+                (*build edges between op1 and all nodes still live right now*)
+                (match op1 with
+                | Var v  ->
+                    let cur_node = VarNode(v) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | Reg r  ->
+                    let cur_node = RegNode(r) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | _ -> () (*doesn't care *));
+                (match op2 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
+            | Arith(op1, op2, _, op3)  (* x := y + z *) ->
+                (match op1 with
+                | Var v  ->
+                    let cur_node = VarNode(v) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | Reg r  ->
+                    let cur_node = RegNode(r) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | _ -> () (*doesn't care *));
+                (match op2 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
+                (match op3 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
+            | Load(op1, op2, _)  (* x := *(y+i) *) ->
+                (match op1 with
+                | Var v  ->
+                    let cur_node = VarNode(v) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | Reg r  ->
+                    let cur_node = RegNode(r) in
+                    build_edges cur_node !liveSet ref_g;
+                    kill := NodeSet.add cur_node !kill
+                | _ -> () (*doesn't care *));
+                (match op2 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
 
-*)
-(*
-?????
-get the stabled liveOut first
-use this stabled liveOut to traverse the block graph to build the interference graph
-*)
-    let initLiveOut = ref NodeSet.empty in
-    let liveOut = ref NodeSet.empty in
-    liveOut := (*some code to get the new OutSet after one DFS of whole function*)
-    while !(node_sets_equal !initLiveOut !liveOut) do
-        initLiveOut := !liveOut in
-        liveOut = (*some code to get the new OutSet after one DFS of whole function*) in
-    done
 
-    
-    let node1 = reg_node 2 in
-    let result_graph = IUGraph.empty in
-    (* Add all nodes to the graph *)
-    let result_graph = List.fold_left (fun g node -> IUGraph.addNode node g) result_graph [node1]
+            | Store(op1, _, op2) (* *(x+i) := y *) ->
+                (match op1 with
+                | Var v  ->
+                    let cur_node = VarNode(v) in
+                    build_edges cur_node !liveSet ref_g;
+                | Reg r  ->
+                    let cur_node = RegNode(r) in
+                    build_edges cur_node !liveSet ref_g;
+                | _ -> () (*doesn't care *));
+                (match op2 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
+
+            | If(op1, _, op2, _, _) (* if x < y then goto L1 else goto L2 *) ->
+                (match op1 with
+                | Var v  ->
+                    let cur_node = VarNode(v) in
+                    (*build_edges cur_node !liveSet ref_g;*)
+                    gen := NodeSet.add cur_node !gen
+                | Reg r  ->
+                    let cur_node = RegNode(r) in
+                    (*build_edges cur_node !liveSet ref_g;*)
+                    gen := NodeSet.add cur_node !gen
+                | _ -> () (*doesn't care *));
+                (match op2 with
+                | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
+                | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
+                | _ -> () (*doesn't care *));
+
+            | _ -> (* write_to_file("\n Match a inst "^inst2string(instruction) ^"\n");*) () );
+            (*update liveSet*)
+            liveSet := NodeSet.diff !liveSet !kill;
+            liveSet := NodeSet.union !liveSet !gen;
+        in
+        List.iter liveness_check (List.rev b);
     in
-    (* Connect all nodes with edges *)
-    (*
-     x10	: {x0,x1,x11,x2,x3,x4,x5,x6,x7,x8,x9}
-      x11	: {x0,x1,x10,x2,x3,x4,x5,x6,x7,x8,x9}
-      x12	: {x0,x1,x2,x3,x4,x5,x6,x7,x8,x9}
-
-    *)
-
-    let ref_graph = ref result_graph in
-    (*
-    let num_nodes = 9 in
-    for i = 0 to num_nodes do
-      for j = 0 to 12 do
-        let src_node = VarNode("x"^(string_of_int i) ) in
-        let dst_node = VarNode("x"^(string_of_int j)) in
-        ref_graph := specialAddEdge src_node dst_node !ref_graph;
-        ()
-      done
+    let liveOutSet = ref NodeSet.empty in
+    List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);
+    while not (node_sets_equal !liveOutSet !initLiveSet) do
+      copy_nodeset liveOutSet initLiveSet;
+      List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);
     done;
-    let limit = 11 in
-    for i = 10 to limit do
-        for j = 0 to 11 do
-                let src_node = VarNode("x"^(string_of_int i) ) in
-                let dst_node = VarNode("x"^(string_of_int j)) in
-                ref_graph := specialAddEdge src_node dst_node !ref_graph;
-                ()
-              done
-    done;
-    *)
     !ref_graph
