@@ -152,6 +152,43 @@ let reg_node v =
   | 31 -> RegNode(Mips.R31)
   | _ ->  write_to_file("\n Fatal error 0002\n"); raise Implement_Me
 
+
+let reg_node_of_string str =
+  match str with
+  | "$0" -> RegNode(Mips.R0)
+  | "$1" -> RegNode(Mips.R1)
+  | "$2" -> RegNode(Mips.R2)
+  | "$3" -> RegNode(Mips.R3)
+  | "$4" -> RegNode(Mips.R4)
+  | "$5" -> RegNode(Mips.R5)
+  | "$6" -> RegNode(Mips.R6)
+  | "$7" -> RegNode(Mips.R7)
+  | "$8" -> RegNode(Mips.R8)
+  | "$9" -> RegNode(Mips.R9)
+  | "$10" -> RegNode(Mips.R10)
+  | "$11" -> RegNode(Mips.R11)
+  | "$12" -> RegNode(Mips.R12)
+  | "$13" -> RegNode(Mips.R13)
+  | "$14" -> RegNode(Mips.R14)
+  | "$15" -> RegNode(Mips.R15)
+  | "$16" -> RegNode(Mips.R16)
+  | "$17" -> RegNode(Mips.R17)
+  | "$18" -> RegNode(Mips.R18)
+  | "$19" -> RegNode(Mips.R19)
+  | "$20" -> RegNode(Mips.R20)
+  | "$21" -> RegNode(Mips.R21)
+  | "$22" -> RegNode(Mips.R22)
+  | "$23" -> RegNode(Mips.R23)
+  | "$24" -> RegNode(Mips.R24)
+  | "$25" -> RegNode(Mips.R25)
+  | "$26" -> RegNode(Mips.R26)
+  | "$27" -> RegNode(Mips.R27)
+  | "$28" -> RegNode(Mips.R28)
+  | "$29" -> RegNode(Mips.R29)
+  | "$30" -> RegNode(Mips.R30)
+  | "$31" -> RegNode(Mips.R31)
+  | _ ->  write_to_file("\n Fatal error 0002\n"); raise Implement_Me
+
 (* given a function (i.e., list of basic blocks), construct the
  * interference graph for that function.  This will require that
  * you build a dataflow analysis for calculating what set of variables
@@ -225,6 +262,15 @@ let build_interfere_graph (f : func) : interfere_graph =
             let gen = ref NodeSet.empty in
             let kill = ref NodeSet.empty in
             (match instruction with
+          (*  | Call(op) ->
+                List.iter (fun reg_number ->
+                    let gen_node = (reg_node_of_string reg_number) in
+                    gen := NodeSet.add gen_node !gen ;
+                     ) call_gen_list;
+                List.iter (fun reg_number ->
+                                    let kill_node = (reg_node_of_string reg_number) in
+                                    kill := NodeSet.add kill_node !kill ;
+                                     ) call_kill_list;*)
             | Move(op1, op2)  (* x := y *) ->
                 (*build edges between op1 and all nodes still live right now*)
                 (match op1 with
@@ -301,11 +347,11 @@ let build_interfere_graph (f : func) : interfere_graph =
                     let cur_node = RegNode(r) in
                     (*build_edges cur_node !liveSet ref_g;*)
                     gen := NodeSet.add cur_node !gen
-                | _ -> () (*doesn't care *));
+                | _ -> () (*don't care *));
                 (match op2 with
                 | Var v  -> gen := NodeSet.add (VarNode(v)) !gen
                 | Reg r  -> gen := NodeSet.add (RegNode(r)) !gen
-                | _ -> () (*doesn't care *));
+                | _ -> () (*don't care *));
 
             | _ -> (* write_to_file("\n Match a inst "^inst2string(instruction) ^"\n");*) () );
             (*update liveSet*)
@@ -314,6 +360,8 @@ let build_interfere_graph (f : func) : interfere_graph =
         in
         List.iter liveness_check (List.rev b);
     in
+    
+
     let liveOutSet = ref NodeSet.empty in
     List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);
     while not (node_sets_equal !liveOutSet !initLiveSet) do

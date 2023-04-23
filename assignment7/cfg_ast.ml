@@ -346,7 +346,7 @@ let fn2blocks (C.Fn {C.name=name;C.args=args;C.body=body;C.pos=pos}) : block lis
      * stack pointer to set aside space to save any spilled values *)
     let _ = emit_inst (Label name) in
         (* generate temps for all of the callee-saves registers *)
-    let callee_temps = save_callee_regs() in
+    (*let callee_temps = save_callee_regs() in*)
         (* load any arguments into temps *)
     let env = load_args empty_env (args,0) in
     (* generate the body of the function *)
@@ -357,7 +357,7 @@ let fn2blocks (C.Fn {C.name=name;C.args=args;C.body=body;C.pos=pos}) : block lis
     (* generate epilogue *)
     let _ = emit_inst (Label epilogue) in
     (* restore callee-saves registers *)
-    let _ = restore_callee_regs callee_temps in
+   (* let _ = restore_callee_regs callee_temps in*)
     (* return from function *)
     let _ = emit_inst Return in
     (* finally, break instructions into basic blocks *)
