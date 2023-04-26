@@ -73,6 +73,39 @@ let string_of_igraph (g: interfere_graph) : string =
 module IDGraph = Graph.DirectedGraph(IGraphNode)
 type block_graph = IDGraph.graph
 
+module NodeHashTable = Hashtbl.Make(String)
+
+let node_hash_table : NodeSet.t NodeHashTable.t = NodeHashTable.create 32
+(*
+let add_to_node_set ht key v =
+  match NodeHashTable.find_opt ht key with
+  | None -> NodeHashTable.add ht key (NodeSet.singleton v)
+  | Some set -> NodeHashTable.replace ht key (NodeSet.add v set)
+*)
+let add_to_node_set ht key set =
+  NodeSet.iter (fun v ->
+    match NodeHashTable.find_opt ht key with
+    | None -> NodeHashTable.add ht key (NodeSet.singleton v)
+    | Some existing_set -> NodeHashTable.replace ht key (NodeSet.add v existing_set)
+  ) set
+
+let remove_from_node_set ht key v =
+  match NodeHashTable.find_opt ht key with
+  | None -> ()
+  | Some set -> NodeHashTable.replace ht key (NodeSet.remove v set)
+
+let update_node_set ht key old_v new_v =
+  match NodeHashTable.find_opt ht key with
+  | None -> ()
+  | Some set ->
+    let new_set = NodeSet.remove old_v (NodeSet.add new_v set) in
+    NodeHashTable.replace ht key new_set
+
+let find_in_node_set ht key =
+  match NodeHashTable.find_opt ht key with
+  | None -> NodeSet.empty
+  | Some set -> set
+
 
 let copy_nodeset (set1 : NodeSet.t ref) (set2 : NodeSet.t ref) : unit =
     (*copy set1 to set2*)
@@ -359,13 +392,37 @@ let build_interfere_graph (f : func) : interfere_graph =
             liveSet := NodeSet.union !liveSet !gen;
         in
         List.iter liveness_check (List.rev b);
+        let node_name = find_label b in
+        add_to_node_set node_hash_table node_name !liveSet;
     in
-    
+    (*
+    let rec bfs (g : block_graph) (cur : igraph_node) ()=
 
+    in
+    *)
     let liveOutSet = ref NodeSet.empty in
-    List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);
+    (*List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);*)
+   List.iter (fun b ->
+           liveOutSet := NodeSet.empty;
+           let cur_node = VarNode((find_label b)) in
+           List.iter (fun suc_node ->
+               match suc_node with
+               | VarNode(suc_node_name) ->
+               liveOutSet := NodeSet.union (find_in_node_set node_hash_table suc_node_name) !liveOutSet ) (NodeSet.elements (IDGraph.succ cur_node result_block_graph));
+           block_liveness_check b ref_graph liveOutSet
+
+           ) (List.rev f);
     while not (node_sets_equal !liveOutSet !initLiveSet) do
       copy_nodeset liveOutSet initLiveSet;
-      List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);
+      List.iter (fun b ->
+      liveOutSet := NodeSet.empty;
+        let cur_node = VarNode((find_label b)) in
+        List.iter (fun suc_node ->
+            match suc_node with
+            | VarNode(suc_node_name) ->
+            liveOutSet := NodeSet.union (find_in_node_set node_hash_table suc_node_name) !liveOutSet ) (NodeSet.elements (IDGraph.succ cur_node result_block_graph));
+        block_liveness_check b ref_graph liveOutSet
+
+        ) (List.rev f);
     done;
     !ref_graph
