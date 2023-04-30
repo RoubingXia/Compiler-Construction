@@ -87,6 +87,11 @@ let add_to_node_set ht key set =
     match NodeHashTable.find_opt ht key with
     | None -> NodeHashTable.add ht key (NodeSet.singleton v)
     | Some existing_set -> NodeHashTable.replace ht key (NodeSet.add v existing_set)
+(*
+    | Some existing_set -> NodeHashTable.remove ht key;
+                            NodeHashTable.add ht key (NodeSet.add v existing_set)
+*)
+
   ) set
 
 let remove_from_node_set ht key v =
@@ -138,6 +143,10 @@ let find_label (block: block) : label =
     | _ :: rest -> helper rest
   in
   helper block
+
+let label2block (f: func) (label : string) : block =
+    List.find (fun b -> (find_label b) = label ) f
+
 
 let rec find_jump_labels block =
   match block with
@@ -401,17 +410,42 @@ let build_interfere_graph (f : func) : interfere_graph =
     in
     *)
     let liveOutSet = ref NodeSet.empty in
-    (*List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f);*)
-   List.iter (fun b ->
-           liveOutSet := NodeSet.empty;
+    let visited = ref NodeSet.empty in
+    let rec dfs (f : func) (b : block) (result_block_graph : block_graph) (liveSet : NodeSet.t) =
+        let cur_node = VarNode((find_label b)) in
+        let liveOutSet = ref liveSet in
+        if not (NodeSet.mem cur_node !visited) then (
+            (*add to visited*)
+            visited := NodeSet.add cur_node !visited;
+            block_liveness_check b ref_graph liveOutSet;
+            (*check predecessors*)
+            List.iter (fun pre_node ->
+                match pre_node with
+                | VarNode(pre_node_label) ->
+                    let pre_block = label2block f pre_node_label in
+                    dfs f pre_block result_block_graph !liveOutSet
+             ) (NodeSet.elements (IDGraph.pred cur_node result_block_graph))
+             )
+        else
+            ();
+    in
+   (*  List.iter (fun b -> block_liveness_check b ref_graph liveOutSet) (List.rev f); *)
+  (*  dfs f (label2block f (string_of_node start_node)) result_block_graph !liveOutSet; *)
+     List.iter (fun b ->
+        visited := NodeSet.empty;
+        dfs f b result_block_graph !liveOutSet) (List.rev f);
+   (* List.iter (fun b ->
+          liveOutSet := NodeSet.empty;
            let cur_node = VarNode((find_label b)) in
            List.iter (fun suc_node ->
-               match suc_node with
+               (match suc_node with
                | VarNode(suc_node_name) ->
-               liveOutSet := NodeSet.union (find_in_node_set node_hash_table suc_node_name) !liveOutSet ) (NodeSet.elements (IDGraph.succ cur_node result_block_graph));
+               liveOutSet := NodeSet.union (find_in_node_set node_hash_table suc_node_name) !liveOutSet))  (NodeSet.elements (IDGraph.succ cur_node result_block_graph));
            block_liveness_check b ref_graph liveOutSet
-
            ) (List.rev f);
+
+*)
+(*
     while not (node_sets_equal !liveOutSet !initLiveSet) do
       copy_nodeset liveOutSet initLiveSet;
       List.iter (fun b ->
@@ -424,5 +458,6 @@ let build_interfere_graph (f : func) : interfere_graph =
         block_liveness_check b ref_graph liveOutSet
 
         ) (List.rev f);
-    done;
+    done; *)
+
     !ref_graph
